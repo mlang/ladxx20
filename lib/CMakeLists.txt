@@ -1,0 +1,7 @@
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(Sndfile REQUIRED IMPORTED_TARGET sndfile>=1.0.31)
+pkg_check_modules(JACK REQUIRED IMPORTED_TARGET jack>=1.9.17)
+add_library(ladxx20 INTERFACE)
+target_sources(ladxx20 INTERFACE buffer.cpp processor.cpp)
+target_link_libraries(ladxx20 INTERFACE PkgConfig::JACK PkgConfig::Sndfile)
+target_include_directories(ladxx20 INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

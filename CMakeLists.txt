@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.18)
+project(ladxx20 VERSION 0.1 LANGUAGES CXX)
+set(CMAKE_BUILD_TYPE MinSizeRel)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+add_subdirectory(lib)
+add_subdirectory(tool)
