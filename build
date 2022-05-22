@@ -1,0 +1,5 @@
+#!/bin/sh -e
+src_dir="$(dirname "${0}")"
+build_dir="${src_dir}/.build"
+[ ! -d "${build_dir}" ] && cmake -S "${src_dir}" -B "${build_dir}"
+cmake --build "${build_dir}" -- "${@}"
