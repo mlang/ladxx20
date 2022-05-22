@@ -1,2 +1,2 @@
 add_executable(loop loop.cpp)
-target_link_libraries(loop ladxx20)
+target_link_libraries(loop ${PROJECT_NAME})
