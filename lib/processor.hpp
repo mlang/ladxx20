@@ -3,6 +3,8 @@
 #include <span>
 #include <string>
 
+// WISHLIST:
+// - A units library for frequency
 namespace lad {
   struct processor {
     struct implementation;
@@ -14,14 +16,13 @@ namespace lad {
     );
     virtual ~processor();
 
-    void connect_audio_out();
-    void start();
-
     std::size_t frames_per_second() const;
+    void start();
+    void connect_audio_out();
 
     struct audio_buffers {
-      std::span<const std::span<const float>> in;
-      std::span<const std::span<float>> out;
+      const std::span<const std::span<const float>> in;
+      const std::span<const std::span<float>> out;
     };
   protected:
     virtual void process(audio_buffers) = 0;
