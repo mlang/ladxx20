@@ -1,12 +1,11 @@
 #include <filesystem>
-//#include <filesystem>
 #include <span>
 #include <vector>
 
 namespace lad {
   class buffer {
-    size_t channels = 1;
-    size_t rate = 0;
+    std::size_t channels = 1;
+    std::size_t rate = 0;
     std::vector<float> interleaved;
 
   public:

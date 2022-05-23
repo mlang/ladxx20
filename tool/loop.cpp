@@ -4,6 +4,7 @@
 #include <iostream>
 #include <processor.hpp>
 #include <simple_interpreter.hpp>
+#include <spsc_queue.hpp>
 
 using namespace lad;
 using namespace std;
@@ -11,11 +12,15 @@ using namespace std;
 struct loop {
   lad::buffer buffer;
   double bpm;
+  float volume = 1.0;
 };
 
+struct set_bpm { double bpm; };
+
 struct player final : processor {
-  double tempo = 120.0;
-  float volume = 0.025;
+  lad::spsc_queue<std::variant<set_bpm>, 128> incoming;
+      	double tempo = 120.0;
+  float volume = 0.035;
   vector<loop> loops;
   std::size_t loop_index = 0;
   double position = 0;
@@ -26,44 +31,60 @@ struct player final : processor {
     delta = (loop.buffer.frames_per_second() * tempo) /
             (frames_per_second() * loop.bpm);
   }
+  std::size_t total_frames = 0;
   player(size_t out = 2) : processor("null", 0, out) {}
   void start() {
     if (!loops.empty()) set_loop(0);
     processor::start();
   }
   void process(audio_buffers audio) override {
+    try_visit(
+      overloaded {
+        [this](set_bpm const &msg) {
+          this->tempo = msg.bpm;
+	  this->set_loop(this->loop_index);
+          return true;
+	}
+      }, incoming
+    );
+      
     if (loops.size() <= loop_index) {
       for (auto buffer : audio.out)
         ranges::fill(buffer, 0.0);
       return;
     }
 
-    for (std::size_t frame = 0; frame != size(audio.out.front()); frame += 1) {
+    const auto frames = size(audio.out.front());
+    for (std::size_t frame : views::iota(decltype(frames){}, frames)) {
       auto const &loop = loops[loop_index];
       std::size_t loop_frame = position;
-      float offset = position - loop_frame;
+      const float offset = position - loop_frame;
       std::size_t channel{};
       for (auto buffer : audio.out) {
-        auto v1 = loop.buffer[loop_frame][channel];
-        auto v2 = v1;
-        if (loop_frame + 1 == loop.buffer.frame_count()) {
-          if (loop_index + 1 < loops.size()) {
-            auto const &next_loop = loops[loop_index + 1];
-            v2 = next_loop.buffer[0][min(next_loop.buffer.channel_count() - 1,
-                                         channel)];
-          }
+	array<float, 2> sample;
+        sample[0] = loop.buffer[loop_frame][channel % loop.buffer.channel_count()];
+        if (loop_frame + 1 < loop.buffer.frame_count()) [[likely]] {
+          sample[1] = loop.buffer[loop_frame + 1]
+	                         [channel % loop.buffer.channel_count()];
         } else {
-          v2 = loop.buffer[loop_frame + 1][channel];
+          auto const &next_buffer = loops[(loop_index + 1) % loops.size()].buffer;
+	  sample[1] = next_buffer[0][channel % next_buffer.channel_count()];
         }
-        buffer[frame] = volume * lerp(v1, v2, offset);
-        if (channel < loop.buffer.channel_count() - 1) channel += 1;
+
+        buffer[frame] = volume * loop.volume * lerp(sample[0], sample[1], offset);
+
+        channel += 1;
       }
+
       position += delta;
-      if (position >= loop.buffer.frame_count()) {
+
+      if (position >= loop.buffer.frame_count()) [[unlikely]] {
         position = position - loop.buffer.frame_count();
-        set_loop(loop_index + 1);
+        set_loop((loop_index + 1) % loops.size());
       }
     }
+
+    total_frames += frames;
   }
 };
 
@@ -108,7 +129,7 @@ int main(int argc, char *argv[]) {
     if (!args.empty()) {
       auto tempo = strtod(args[0].c_str(), nullptr);
       if (tempo > 0) {
-        audio.tempo = tempo;
+        audio.incoming.try_emplace(set_bpm{tempo});
       }
     }
     return true;
