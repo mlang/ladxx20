@@ -1,19 +1,20 @@
+#pragma once
+
 #include <array>
 #include <atomic>
 #include <cassert>
 #include <functional>
 #include <type_traits>
-#include <variant>
 
 namespace lad {
 	
 // Producer destroys
 template<typename Type, std::size_t Capacity>
-class spsc_queue {
+class static_spsc_queue {
 public:
   using value_type = Type;
 
-  ~spsc_queue() {
+  ~static_spsc_queue() {
     for (std::size_t i = 0; i != Capacity; i++) {
       maybe_destroy(i);
     }
@@ -63,11 +64,17 @@ private:
   }
 };
 
+}
+
+#include <variant>
+
+namespace lad {
+
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 template<typename Visitor, typename Variant, std::size_t Capacity>
-bool try_visit(Visitor&& visitor, spsc_queue<Variant, Capacity> &queue) {
+bool try_visit(Visitor&& visitor, static_spsc_queue<Variant, Capacity> &queue) {
   return queue.try_consume(
     [&visitor](auto&& variant) {
       return visit(

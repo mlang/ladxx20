@@ -1,3 +1,5 @@
+#pragma once
+
 #include <experimental/propagate_const>
 #include <memory>
 #include <span>

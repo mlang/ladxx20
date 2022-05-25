@@ -4,7 +4,7 @@
 #include <iostream>
 #include <processor.hpp>
 #include <simple_interpreter.hpp>
-#include <spsc_queue.hpp>
+#include <static_spsc_queue.hpp>
 
 using namespace lad;
 using namespace std;
@@ -16,10 +16,12 @@ struct loop {
 };
 
 struct set_bpm { double bpm; };
+struct set_volume { double value; };
+using msg_t = std::variant<set_bpm, set_volume>;
 
 struct player final : processor {
-  lad::spsc_queue<std::variant<set_bpm>, 128> incoming;
-      	double tempo = 120.0;
+  lad::static_spsc_queue<msg_t, 128> incoming;
+        double tempo = 120.0;
   float volume = 0.035;
   vector<loop> loops;
   std::size_t loop_index = 0;
@@ -42,9 +44,13 @@ struct player final : processor {
       overloaded {
         [this](set_bpm const &msg) {
           this->tempo = msg.bpm;
-	  this->set_loop(this->loop_index);
+          this->set_loop(this->loop_index);
           return true;
-	}
+        },
+        [this](set_volume const &msg) {
+          this->volume = msg.value;
+          return true;
+        }
       }, incoming
     );
       
@@ -61,14 +67,14 @@ struct player final : processor {
       const float offset = position - loop_frame;
       std::size_t channel{};
       for (auto buffer : audio.out) {
-	array<float, 2> sample;
+        array<float, 2> sample;
         sample[0] = loop.buffer[loop_frame][channel % loop.buffer.channel_count()];
         if (loop_frame + 1 < loop.buffer.frame_count()) [[likely]] {
           sample[1] = loop.buffer[loop_frame + 1]
-	                         [channel % loop.buffer.channel_count()];
+                                 [channel % loop.buffer.channel_count()];
         } else {
           auto const &next_buffer = loops[(loop_index + 1) % loops.size()].buffer;
-	  sample[1] = next_buffer[0][channel % next_buffer.channel_count()];
+          sample[1] = next_buffer[0][channel % next_buffer.channel_count()];
         }
 
         buffer[frame] = volume * loop.volume * lerp(sample[0], sample[1], offset);
@@ -135,6 +141,17 @@ int main(int argc, char *argv[]) {
     return true;
   };
   interpret.commands.insert({"tempo", tempo});
+
+  auto volume = [&](auto args) {
+    if (!args.empty()) {
+      auto volume = strtod(args[0].c_str(), nullptr);
+      if (volume > 0) {
+        audio.incoming.try_emplace(set_volume{volume});
+      }
+    }
+    return true;
+  };
+  interpret.commands.insert({"volume", volume});
 
   if (auto config_home = getenv("XDG_CONFIG_HOME")) {
     interpret(filesystem::path(config_home) / program.filename() / "startup");
