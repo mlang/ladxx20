@@ -39,21 +39,20 @@ struct player final : processor {
     if (!loops.empty()) set_loop(0);
     processor::start();
   }
+  bool operator()(set_bpm const &msg) {
+    tempo = msg.bpm;
+    set_loop(loop_index);
+
+    return true;
+  }
+  bool operator()(set_volume const &msg) {
+    volume = msg.value;
+
+    return true;
+  }
   void process(audio_buffers audio) override {
-    try_visit(
-      overloaded {
-        [this](set_bpm const &msg) {
-          this->tempo = msg.bpm;
-          this->set_loop(this->loop_index);
-          return true;
-        },
-        [this](set_volume const &msg) {
-          this->volume = msg.value;
-          return true;
-        }
-      }, incoming
-    );
-      
+    while(try_visit(*this, incoming));
+
     if (loops.size() <= loop_index) {
       for (auto buffer : audio.out)
         ranges::fill(buffer, 0.0);

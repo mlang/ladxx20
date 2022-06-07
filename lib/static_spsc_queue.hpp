@@ -44,8 +44,9 @@ public:
   }
 
 private:
-  std::aligned_storage_t<sizeof(value_type)> data[Capacity];
-  std::array<bool, Capacity> initialized{};
+  std::aligned_storage_t<sizeof(value_type), alignof(value_type)>
+  data[Capacity + 1];
+  std::array<bool, Capacity + 1> initialized{};
   value_type *get(std::size_t index) {
     return std::launder(reinterpret_cast<value_type*>(&data[index]));
   }
